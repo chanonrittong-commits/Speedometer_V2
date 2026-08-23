@@ -13,6 +13,7 @@ import android.os.Looper
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -38,8 +39,10 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -80,6 +83,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import kotlin.math.cos
 import kotlin.math.min
@@ -87,6 +92,7 @@ import kotlin.math.sin
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         // Keep screen on while using speedometer
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -232,6 +238,8 @@ private fun ModernDashboardScreen(
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) }
 
+    var showSettings by remember { mutableStateOf(false) }
+
     var selectedUnit by remember {
         val savedUnitName = prefs.getString(PREF_KEY_UNIT, SpeedUnit.KMH.name)
         mutableStateOf(
@@ -255,6 +263,11 @@ private fun ModernDashboardScreen(
         prefs.edit().putString(PREF_KEY_UNIT, unit.name).apply()
     }
 
+    val onSpeedLimitSelect: (Float) -> Unit = { limit ->
+        speedLimitKmh = limit
+        prefs.edit().putFloat(PREF_KEY_LIMIT, limit).apply()
+    }
+
     val onToggleSpeedLimit = {
         val nextLimit = when (speedLimitKmh) {
             0f -> 80f
@@ -262,8 +275,19 @@ private fun ModernDashboardScreen(
             100f -> 120f
             else -> 0f
         }
-        speedLimitKmh = nextLimit
-        prefs.edit().putFloat(PREF_KEY_LIMIT, nextLimit).apply()
+        onSpeedLimitSelect(nextLimit)
+    }
+
+    if (showSettings) {
+        SettingsDialog(
+            language = language,
+            onSelectLanguage = onSelectLanguage,
+            currentUnit = selectedUnit,
+            onSelectUnit = onUnitSelect,
+            speedLimit = speedLimitKmh,
+            onSelectSpeedLimit = onSpeedLimitSelect,
+            onDismiss = { showSettings = false },
+        )
     }
 
     // Current unit converted values
@@ -301,6 +325,8 @@ private fun ModernDashboardScreen(
                     else listOf(BgGradientTop, BgDark, BgGradientBottom),
                 ),
             )
+            .statusBarsPadding()
+            .navigationBarsPadding()
             .graphicsLayer {
                 // HUD Mode: horizontal mirror flip for windshield reflection
                 if (isHudMode) {
@@ -308,17 +334,17 @@ private fun ModernDashboardScreen(
                 }
             }
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp, vertical = 16.dp),
+            .padding(horizontal = 20.dp, vertical = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        // --- Top Bar: App Title, Language Toggle, Limit & HUD ---
+        // --- Top Bar: App Title, Limit, HUD & Settings ---
         TopBarControls(
             language = language,
-            onToggleLanguage = onSelectLanguage,
             isHudMode = isHudMode,
             onToggleHud = { isHudMode = !isHudMode },
             speedLimit = speedLimitKmh,
             onToggleSpeedLimit = onToggleSpeedLimit,
+            onOpenSettings = { showSettings = true },
         )
 
         Spacer(Modifier.height(12.dp))
@@ -394,11 +420,11 @@ private fun ModernDashboardScreen(
 @Composable
 private fun TopBarControls(
     language: AppLanguage,
-    onToggleLanguage: (AppLanguage) -> Unit,
     isHudMode: Boolean,
     onToggleHud: () -> Unit,
     speedLimit: Float,
     onToggleSpeedLimit: () -> Unit,
+    onOpenSettings: () -> Unit,
 ) {
     Row(
         modifier = Modifier
@@ -407,13 +433,14 @@ private fun TopBarControls(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column {
+        Column(modifier = Modifier.weight(1f, fill = false)) {
             Text(
                 text = "SPEEDOMETER",
                 color = NeonCyan,
                 fontSize = 17.sp,
                 fontWeight = FontWeight.Black,
                 letterSpacing = 2.5.sp,
+                maxLines = 1,
             )
             Text(
                 text = if (language == AppLanguage.EN) "GPS TELEMETRY PRO" else "ระบบวัดความเร็ว GPS PRO",
@@ -421,19 +448,16 @@ private fun TopBarControls(
                 fontSize = 10.sp,
                 fontWeight = FontWeight.SemiBold,
                 letterSpacing = 1.2.sp,
+                maxLines = 1,
             )
         }
 
+        Spacer(Modifier.width(8.dp))
+
         Row(
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Language selector toggle (TH | EN)
-            LanguageSelectorToggle(
-                currentLanguage = language,
-                onSelectLanguage = onToggleLanguage,
-            )
-
             // Speed Limit Switcher Pill
             Box(
                 modifier = Modifier
@@ -441,7 +465,7 @@ private fun TopBarControls(
                     .background(if (speedLimit > 0) LimitActiveBg else CardBg)
                     .border(1.dp, if (speedLimit > 0) WarningRed.copy(alpha = 0.6f) else BorderDark, RoundedCornerShape(20.dp))
                     .clickable { onToggleSpeedLimit() }
-                    .padding(horizontal = 9.dp, vertical = 6.dp),
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
@@ -449,6 +473,7 @@ private fun TopBarControls(
                     color = if (speedLimit > 0) WarningRed else TextDim,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
+                    maxLines = 1,
                 )
             }
 
@@ -459,7 +484,7 @@ private fun TopBarControls(
                     .background(if (isHudMode) NeonCyan.copy(alpha = 0.2f) else CardBg)
                     .border(1.dp, if (isHudMode) NeonCyan else BorderDark, RoundedCornerShape(20.dp))
                     .clickable { onToggleHud() }
-                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                    .padding(horizontal = 11.dp, vertical = 6.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
@@ -467,6 +492,23 @@ private fun TopBarControls(
                     color = if (isHudMode) NeonCyan else TextDim,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                )
+            }
+
+            // Settings ⚙️ Button
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .clip(CircleShape)
+                    .background(CardBg)
+                    .border(1.dp, BorderDark, CircleShape)
+                    .clickable { onOpenSettings() },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "⚙️",
+                    fontSize = 15.sp,
                 )
             }
         }
@@ -474,38 +516,227 @@ private fun TopBarControls(
 }
 
 // -----------------------------------------------------------------------------
-// Language Selector Toggle
+// Settings Dialog Modal
 // -----------------------------------------------------------------------------
 @Composable
-private fun LanguageSelectorToggle(
-    currentLanguage: AppLanguage,
+private fun SettingsDialog(
+    language: AppLanguage,
     onSelectLanguage: (AppLanguage) -> Unit,
+    currentUnit: SpeedUnit,
+    onSelectUnit: (SpeedUnit) -> Unit,
+    speedLimit: Float,
+    onSelectSpeedLimit: (Float) -> Unit,
+    onDismiss: () -> Unit,
 ) {
-    Row(
-        modifier = Modifier
-            .clip(RoundedCornerShape(20.dp))
-            .background(CardBg)
-            .border(1.dp, BorderDark, RoundedCornerShape(20.dp))
-            .padding(2.dp),
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
-        AppLanguage.entries.forEach { lang ->
-            val isSelected = lang == currentLanguage
-            Box(
+        Card(
+            modifier = Modifier
+                .fillMaxWidth(0.92f)
+                .clip(RoundedCornerShape(24.dp))
+                .border(1.dp, BorderDark, RoundedCornerShape(24.dp)),
+            colors = CardDefaults.cardColors(containerColor = CardBg),
+            shape = RoundedCornerShape(24.dp),
+        ) {
+            Column(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(if (isSelected) NeonCyan else Color.Transparent)
-                    .clickable { onSelectLanguage(lang) }
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                contentAlignment = Alignment.Center,
+                    .fillMaxWidth()
+                    .padding(22.dp)
+                    .verticalScroll(rememberScrollState()),
             ) {
+                // Header: Title & Close Button
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            text = "⚙️",
+                            fontSize = 20.sp,
+                        )
+                        Text(
+                            text = if (language == AppLanguage.EN) "SETTINGS" else "การตั้งค่า",
+                            color = NeonCyan,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 2.sp,
+                        )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(BorderDark.copy(alpha = 0.5f))
+                            .clickable { onDismiss() },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = "✕",
+                            color = TextDim,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(20.dp))
+
+                // Section 1: Language Selection (EN / TH)
                 Text(
-                    text = lang.shortName,
-                    color = if (isSelected) BgDark else TextDim,
+                    text = if (language == AppLanguage.EN) "LANGUAGE" else "ภาษา (LANGUAGE)",
+                    color = TextDim,
                     fontSize = 11.sp,
-                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.2.sp,
                 )
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    AppLanguage.entries.forEach { lang ->
+                        val isSelected = lang == language
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(if (isSelected) NeonCyan.copy(alpha = 0.18f) else Color(0xFF0C101A))
+                                .border(
+                                    1.dp,
+                                    if (isSelected) NeonCyan else BorderDark,
+                                    RoundedCornerShape(14.dp),
+                                )
+                                .clickable { onSelectLanguage(lang) }
+                                .padding(vertical = 12.dp, horizontal = 10.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                text = if (lang == AppLanguage.EN) "🇬🇧 English" else "🇹🇭 ภาษาไทย",
+                                color = if (isSelected) TextWhite else TextDim,
+                                fontSize = 13.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            )
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(18.dp))
+
+                // Section 2: Speed Unit Selection
+                Text(
+                    text = if (language == AppLanguage.EN) "SPEED UNIT" else "หน่วยความเร็ว (SPEED UNIT)",
+                    color = TextDim,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.2.sp,
+                )
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    SpeedUnit.entries.forEach { unit ->
+                        val isSelected = unit == currentUnit
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(if (isSelected) NeonCyan.copy(alpha = 0.18f) else Color(0xFF0C101A))
+                                .border(
+                                    1.dp,
+                                    if (isSelected) NeonCyan else BorderDark,
+                                    RoundedCornerShape(14.dp),
+                                )
+                                .clickable { onSelectUnit(unit) }
+                                .padding(vertical = 11.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                text = unit.label,
+                                color = if (isSelected) NeonCyan else TextDim,
+                                fontSize = 13.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            )
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(18.dp))
+
+                // Section 3: Speed Limit Warning
+                Text(
+                    text = if (language == AppLanguage.EN) "SPEED LIMIT ALERT" else "เตือนความเร็วเกินกำหนด",
+                    color = TextDim,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.2.sp,
+                )
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    listOf(0f, 80f, 100f, 120f).forEach { limit ->
+                        val isSelected = speedLimit == limit
+                        val label = if (limit == 0f) {
+                            if (language == AppLanguage.EN) "OFF" else "ปิด"
+                        } else {
+                            "${limit.toInt()}"
+                        }
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(
+                                    if (isSelected) (if (limit > 0) WarningRed.copy(alpha = 0.2f) else NeonCyan.copy(alpha = 0.18f))
+                                    else Color(0xFF0C101A),
+                                )
+                                .border(
+                                    1.dp,
+                                    if (isSelected) (if (limit > 0) WarningRed else NeonCyan) else BorderDark,
+                                    RoundedCornerShape(12.dp),
+                                )
+                                .clickable { onSelectSpeedLimit(limit) }
+                                .padding(vertical = 10.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                text = label,
+                                color = if (isSelected) (if (limit > 0) WarningRed else NeonCyan) else TextDim,
+                                fontSize = 12.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            )
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(24.dp))
+
+                // Done Button
+                Button(
+                    onClick = onDismiss,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = NeonCyan,
+                        contentColor = BgDark,
+                    ),
+                ) {
+                    Text(
+                        text = if (language == AppLanguage.EN) "Done" else "เสร็จสิ้น",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
             }
         }
     }
@@ -1010,6 +1241,20 @@ private fun ModernPermissionScreen(
     onSelectLanguage: (AppLanguage) -> Unit,
     onGrant: () -> Unit,
 ) {
+    var showSettings by remember { mutableStateOf(false) }
+
+    if (showSettings) {
+        SettingsDialog(
+            language = language,
+            onSelectLanguage = onSelectLanguage,
+            currentUnit = SpeedUnit.KMH,
+            onSelectUnit = {},
+            speedLimit = 0f,
+            onSelectSpeedLimit = {},
+            onDismiss = { showSettings = false },
+        )
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -1018,17 +1263,30 @@ private fun ModernPermissionScreen(
                     colors = listOf(BgGradientTop, BgDark, BgGradientBottom),
                 ),
             )
-            .padding(horizontal = 24.dp, vertical = 20.dp),
+            .statusBarsPadding()
+            .navigationBarsPadding()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 24.dp, vertical = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.End,
         ) {
-            LanguageSelectorToggle(
-                currentLanguage = language,
-                onSelectLanguage = onSelectLanguage,
-            )
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(CardBg)
+                    .border(1.dp, BorderDark, CircleShape)
+                    .clickable { showSettings = true },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "⚙️",
+                    fontSize = 16.sp,
+                )
+            }
         }
 
         Spacer(Modifier.weight(1f))
