@@ -57,7 +57,6 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -70,7 +69,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.graphicsLayer
@@ -106,8 +104,18 @@ class MainActivity : ComponentActivity() {
 }
 
 // -----------------------------------------------------------------------------
-// Data Models & Unit Definitions
+// Language & Unit Definitions
 // -----------------------------------------------------------------------------
+private const val PREFS_NAME = "speedometer_prefs"
+private const val PREF_KEY_LANGUAGE = "pref_language"
+private const val PREF_KEY_UNIT = "pref_unit"
+private const val PREF_KEY_LIMIT = "pref_speed_limit"
+
+enum class AppLanguage(val code: String, val displayName: String, val shortName: String) {
+    EN("en", "English", "EN"),
+    TH("th", "ไทย", "TH"),
+}
+
 enum class SpeedUnit(
     val label: String,
     val conversionFactor: Float, // from km/h
@@ -119,6 +127,24 @@ enum class SpeedUnit(
     KNOTS("KTS", 0.539957f, 120f, 10f),
 }
 
+enum class GpsStatus {
+    SEARCHING,
+    ENABLE_GPS_SETTINGS,
+    CONNECTING,
+    PERMISSION_DENIED,
+    CONNECTED,
+    DISABLED;
+
+    fun getMessage(language: AppLanguage): String = when (this) {
+        SEARCHING -> if (language == AppLanguage.EN) "Searching for GPS signal..." else "กำลังค้นหาสัญญาณ GPS..."
+        ENABLE_GPS_SETTINGS -> if (language == AppLanguage.EN) "Please enable GPS in settings" else "กรุณาเปิด GPS ในการตั้งค่าเครื่อง"
+        CONNECTING -> if (language == AppLanguage.EN) "Connecting to GPS satellites..." else "กำลังเชื่อมต่อดาวเทียม GPS..."
+        PERMISSION_DENIED -> if (language == AppLanguage.EN) "Location permission denied" else "ไม่ได้รับสิทธิ์ตำแหน่ง"
+        CONNECTED -> if (language == AppLanguage.EN) "GPS Connected" else "GPS เชื่อมต่อสมบูรณ์"
+        DISABLED -> if (language == AppLanguage.EN) "GPS is disabled" else "GPS ถูกปิดอยู่"
+    }
+}
+
 private data class SpeedUiState(
     val speedKmh: Float = 0f,
     val maxSpeedKmh: Float = 0f,
@@ -127,7 +153,7 @@ private data class SpeedUiState(
     val bearingDegrees: Float? = null,
     val accuracyMeters: Float? = null,
     val isGpsReady: Boolean = false,
-    val status: String = "กำลังค้นหาสัญญาณ GPS...",
+    val status: GpsStatus = GpsStatus.SEARCHING,
 )
 
 // -----------------------------------------------------------------------------
@@ -136,6 +162,24 @@ private data class SpeedUiState(
 @Composable
 private fun SpeedometerApp() {
     val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) }
+
+    var selectedLanguage by remember {
+        val savedLangName = prefs.getString(PREF_KEY_LANGUAGE, AppLanguage.EN.name)
+        mutableStateOf(
+            try {
+                AppLanguage.valueOf(savedLangName ?: AppLanguage.EN.name)
+            } catch (_: Exception) {
+                AppLanguage.EN
+            }
+        )
+    }
+
+    val onLanguageChange: (AppLanguage) -> Unit = { newLang ->
+        selectedLanguage = newLang
+        prefs.edit().putString(PREF_KEY_LANGUAGE, newLang.name).apply()
+    }
+
     val controller = remember { SpeedController(context.applicationContext) }
     var permitted by remember { mutableStateOf(context.hasLocationPermission()) }
 
@@ -155,17 +199,23 @@ private fun SpeedometerApp() {
     if (permitted) {
         ModernDashboardScreen(
             state = controller.state,
+            language = selectedLanguage,
+            onSelectLanguage = onLanguageChange,
             onResetTrip = { controller.resetTrip() },
         )
     } else {
-        ModernPermissionScreen {
-            permissionRequester.launch(
-                arrayOf(
-                    Manifest.permission.ACCESS_FINE_LOCATION,
-                    Manifest.permission.ACCESS_COARSE_LOCATION,
-                ),
-            )
-        }
+        ModernPermissionScreen(
+            language = selectedLanguage,
+            onSelectLanguage = onLanguageChange,
+            onGrant = {
+                permissionRequester.launch(
+                    arrayOf(
+                        Manifest.permission.ACCESS_FINE_LOCATION,
+                        Manifest.permission.ACCESS_COARSE_LOCATION,
+                    ),
+                )
+            },
+        )
     }
 }
 
@@ -175,11 +225,46 @@ private fun SpeedometerApp() {
 @Composable
 private fun ModernDashboardScreen(
     state: SpeedUiState,
+    language: AppLanguage,
+    onSelectLanguage: (AppLanguage) -> Unit,
     onResetTrip: () -> Unit,
 ) {
-    var selectedUnit by remember { mutableStateOf(SpeedUnit.KMH) }
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) }
+
+    var selectedUnit by remember {
+        val savedUnitName = prefs.getString(PREF_KEY_UNIT, SpeedUnit.KMH.name)
+        mutableStateOf(
+            try {
+                SpeedUnit.valueOf(savedUnitName ?: SpeedUnit.KMH.name)
+            } catch (_: Exception) {
+                SpeedUnit.KMH
+            }
+        )
+    }
+
     var isHudMode by remember { mutableStateOf(false) }
-    var speedLimitKmh by remember { mutableFloatStateOf(120f) } // 0 = disabled
+
+    var speedLimitKmh by remember {
+        val savedLimit = prefs.getFloat(PREF_KEY_LIMIT, 120f)
+        mutableFloatStateOf(savedLimit)
+    }
+
+    val onUnitSelect: (SpeedUnit) -> Unit = { unit ->
+        selectedUnit = unit
+        prefs.edit().putString(PREF_KEY_UNIT, unit.name).apply()
+    }
+
+    val onToggleSpeedLimit = {
+        val nextLimit = when (speedLimitKmh) {
+            0f -> 80f
+            80f -> 100f
+            100f -> 120f
+            else -> 0f
+        }
+        speedLimitKmh = nextLimit
+        prefs.edit().putFloat(PREF_KEY_LIMIT, nextLimit).apply()
+    }
 
     // Current unit converted values
     val currentSpeedConverted = state.speedKmh * selectedUnit.conversionFactor
@@ -204,7 +289,8 @@ private fun ModernDashboardScreen(
         "${directions[index]} %.0f°".format(degrees)
     } ?: "--"
 
-    val accuracyDisplay = state.accuracyMeters?.let { "±%.1fm".format(it) } ?: "ค้นหา..."
+    val accuracySearchingText = if (language == AppLanguage.EN) "Searching..." else "ค้นหา..."
+    val accuracyDisplay = state.accuracyMeters?.let { "±%.1fm".format(it) } ?: accuracySearchingText
 
     Column(
         modifier = Modifier
@@ -225,19 +311,14 @@ private fun ModernDashboardScreen(
             .padding(horizontal = 20.dp, vertical = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        // --- Top Bar: App Title & HUD / Limit Toggles ---
+        // --- Top Bar: App Title, Language Toggle, Limit & HUD ---
         TopBarControls(
+            language = language,
+            onToggleLanguage = onSelectLanguage,
             isHudMode = isHudMode,
             onToggleHud = { isHudMode = !isHudMode },
             speedLimit = speedLimitKmh,
-            onToggleSpeedLimit = {
-                speedLimitKmh = when (speedLimitKmh) {
-                    0f -> 80f
-                    80f -> 100f
-                    100f -> 120f
-                    else -> 0f
-                }
-            },
+            onToggleSpeedLimit = onToggleSpeedLimit,
         )
 
         Spacer(Modifier.height(12.dp))
@@ -245,7 +326,7 @@ private fun ModernDashboardScreen(
         // --- Unit Selector Pills ---
         UnitSelector(
             currentUnit = selectedUnit,
-            onSelectUnit = { selectedUnit = it },
+            onSelectUnit = onUnitSelect,
         )
 
         Spacer(Modifier.height(16.dp))
@@ -259,6 +340,7 @@ private fun ModernDashboardScreen(
             OverSpeedWarningBanner(
                 limit = speedLimitConverted.toInt(),
                 unit = selectedUnit.label,
+                language = language,
             )
             Spacer(Modifier.height(12.dp))
         }
@@ -277,8 +359,9 @@ private fun ModernDashboardScreen(
 
         // --- GPS Status & Precision Badge ---
         GpsStatusBar(
-            status = state.status,
+            status = state.status.getMessage(language),
             accuracy = accuracyDisplay,
+            accuracyLabel = if (language == AppLanguage.EN) "Accuracy" else "ความแม่นยำ",
             isGpsReady = state.isGpsReady,
         )
 
@@ -290,12 +373,16 @@ private fun ModernDashboardScreen(
             distance = distanceDisplay,
             altitude = altitudeDisplay,
             heading = headingDisplay,
+            language = language,
         )
 
         Spacer(Modifier.height(16.dp))
 
         // --- Trip Reset Button ---
-        TripResetBar(onResetTrip = onResetTrip)
+        TripResetBar(
+            language = language,
+            onResetTrip = onResetTrip,
+        )
 
         Spacer(Modifier.height(24.dp))
     }
@@ -306,6 +393,8 @@ private fun ModernDashboardScreen(
 // -----------------------------------------------------------------------------
 @Composable
 private fun TopBarControls(
+    language: AppLanguage,
+    onToggleLanguage: (AppLanguage) -> Unit,
     isHudMode: Boolean,
     onToggleHud: () -> Unit,
     speedLimit: Float,
@@ -324,18 +413,27 @@ private fun TopBarControls(
                 color = NeonCyan,
                 fontSize = 17.sp,
                 fontWeight = FontWeight.Black,
-                letterSpacing = 3.sp,
+                letterSpacing = 2.5.sp,
             )
             Text(
-                text = "GPS TELEMETRY PRO",
+                text = if (language == AppLanguage.EN) "GPS TELEMETRY PRO" else "ระบบวัดความเร็ว GPS PRO",
                 color = TextDim,
                 fontSize = 10.sp,
                 fontWeight = FontWeight.SemiBold,
-                letterSpacing = 1.5.sp,
+                letterSpacing = 1.2.sp,
             )
         }
 
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // Language selector toggle (TH | EN)
+            LanguageSelectorToggle(
+                currentLanguage = language,
+                onSelectLanguage = onToggleLanguage,
+            )
+
             // Speed Limit Switcher Pill
             Box(
                 modifier = Modifier
@@ -343,7 +441,7 @@ private fun TopBarControls(
                     .background(if (speedLimit > 0) LimitActiveBg else CardBg)
                     .border(1.dp, if (speedLimit > 0) WarningRed.copy(alpha = 0.6f) else BorderDark, RoundedCornerShape(20.dp))
                     .clickable { onToggleSpeedLimit() }
-                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                    .padding(horizontal = 9.dp, vertical = 6.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
@@ -361,7 +459,7 @@ private fun TopBarControls(
                     .background(if (isHudMode) NeonCyan.copy(alpha = 0.2f) else CardBg)
                     .border(1.dp, if (isHudMode) NeonCyan else BorderDark, RoundedCornerShape(20.dp))
                     .clickable { onToggleHud() }
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
@@ -369,6 +467,44 @@ private fun TopBarControls(
                     color = if (isHudMode) NeonCyan else TextDim,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
+                )
+            }
+        }
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Language Selector Toggle
+// -----------------------------------------------------------------------------
+@Composable
+private fun LanguageSelectorToggle(
+    currentLanguage: AppLanguage,
+    onSelectLanguage: (AppLanguage) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(CardBg)
+            .border(1.dp, BorderDark, RoundedCornerShape(20.dp))
+            .padding(2.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        AppLanguage.entries.forEach { lang ->
+            val isSelected = lang == currentLanguage
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(if (isSelected) NeonCyan else Color.Transparent)
+                    .clickable { onSelectLanguage(lang) }
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = lang.shortName,
+                    color = if (isSelected) BgDark else TextDim,
+                    fontSize = 11.sp,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                 )
             }
         }
@@ -416,7 +552,11 @@ private fun UnitSelector(
 // Over-speed Warning Banner
 // -----------------------------------------------------------------------------
 @Composable
-private fun OverSpeedWarningBanner(limit: Int, unit: String) {
+private fun OverSpeedWarningBanner(
+    limit: Int,
+    unit: String,
+    language: AppLanguage,
+) {
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
     val alpha by infiniteTransition.animateFloat(
         initialValue = 0.4f,
@@ -428,6 +568,12 @@ private fun OverSpeedWarningBanner(limit: Int, unit: String) {
         label = "alpha",
     )
 
+    val warningMessage = if (language == AppLanguage.EN) {
+        "⚠️ Speed limit exceeded (Limit: $limit $unit)"
+    } else {
+        "⚠️ ความเร็วเกินกำหนด (จำกัดที่ $limit $unit)"
+    }
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -438,7 +584,7 @@ private fun OverSpeedWarningBanner(limit: Int, unit: String) {
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            text = "⚠️ ความเร็วเกินกำหนด (จำกัดที่ $limit $unit)",
+            text = warningMessage,
             color = WarningRed,
             fontSize = 13.sp,
             fontWeight = FontWeight.Bold,
@@ -658,6 +804,7 @@ private fun ModernSpeedGauge(
 private fun GpsStatusBar(
     status: String,
     accuracy: String,
+    accuracyLabel: String,
     isGpsReady: Boolean,
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "gpsPulse")
@@ -682,6 +829,7 @@ private fun GpsStatusBar(
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         Row(
+            modifier = Modifier.weight(1f, fill = false),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
@@ -702,8 +850,10 @@ private fun GpsStatusBar(
             )
         }
 
+        Spacer(Modifier.width(8.dp))
+
         Text(
-            text = "ความแม่นยำ $accuracy",
+            text = "$accuracyLabel $accuracy",
             color = TextDim,
             fontSize = 12.sp,
             fontWeight = FontWeight.Medium,
@@ -720,7 +870,13 @@ private fun TelemetryGrid(
     distance: String,
     altitude: String,
     heading: String,
+    language: AppLanguage,
 ) {
+    val maxSpeedTitle = if (language == AppLanguage.EN) "MAX SPEED" else "ความเร็วสูงสุด"
+    val distanceTitle = if (language == AppLanguage.EN) "TRIP DISTANCE" else "ระยะทางสะสม"
+    val altitudeTitle = if (language == AppLanguage.EN) "ALTITUDE" else "ระดับความสูง"
+    val headingTitle = if (language == AppLanguage.EN) "HEADING" else "ทิศทาง"
+
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -731,14 +887,14 @@ private fun TelemetryGrid(
         ) {
             TelemetryCard(
                 modifier = Modifier.weight(1f),
-                title = "MAX SPEED",
+                title = maxSpeedTitle,
                 value = maxSpeed,
                 iconText = "⚡",
                 accentColor = WarningOrange,
             )
             TelemetryCard(
                 modifier = Modifier.weight(1f),
-                title = "TRIP DISTANCE",
+                title = distanceTitle,
                 value = distance,
                 iconText = "📍",
                 accentColor = NeonCyan,
@@ -751,14 +907,14 @@ private fun TelemetryGrid(
         ) {
             TelemetryCard(
                 modifier = Modifier.weight(1f),
-                title = "ALTITUDE",
+                title = altitudeTitle,
                 value = altitude,
                 iconText = "⛰️",
                 accentColor = ElectricBlue,
             )
             TelemetryCard(
                 modifier = Modifier.weight(1f),
-                title = "HEADING",
+                title = headingTitle,
                 value = heading,
                 iconText = "🧭",
                 accentColor = SuccessGreen,
@@ -815,7 +971,16 @@ private fun TelemetryCard(
 // Trip Reset Bar
 // -----------------------------------------------------------------------------
 @Composable
-private fun TripResetBar(onResetTrip: () -> Unit) {
+private fun TripResetBar(
+    language: AppLanguage,
+    onResetTrip: () -> Unit,
+) {
+    val resetText = if (language == AppLanguage.EN) {
+        "🔄 Reset Trip & Max Speed"
+    } else {
+        "🔄 รีเซ็ตระยะทางและความเร็วสูงสุด"
+    }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -828,7 +993,7 @@ private fun TripResetBar(onResetTrip: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = "🔄 รีเซ็ตระยะทางและความเร็วสูงสุด (Reset Trip)",
+            text = resetText,
             color = TextDim,
             fontSize = 13.sp,
             fontWeight = FontWeight.SemiBold,
@@ -840,7 +1005,11 @@ private fun TripResetBar(onResetTrip: () -> Unit) {
 // Modern Permission Screen
 // -----------------------------------------------------------------------------
 @Composable
-private fun ModernPermissionScreen(onGrant: () -> Unit) {
+private fun ModernPermissionScreen(
+    language: AppLanguage,
+    onSelectLanguage: (AppLanguage) -> Unit,
+    onGrant: () -> Unit,
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -849,22 +1018,33 @@ private fun ModernPermissionScreen(onGrant: () -> Unit) {
                     colors = listOf(BgGradientTop, BgDark, BgGradientBottom),
                 ),
             )
-            .padding(28.dp),
-        verticalArrangement = Arrangement.Center,
+            .padding(horizontal = 24.dp, vertical = 20.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End,
+        ) {
+            LanguageSelectorToggle(
+                currentLanguage = language,
+                onSelectLanguage = onSelectLanguage,
+            )
+        }
+
+        Spacer(Modifier.weight(1f))
+
         Box(
             modifier = Modifier
-                .size(90.dp)
+                .size(88.dp)
                 .clip(CircleShape)
                 .background(NeonCyan.copy(alpha = 0.12f))
                 .border(2.dp, NeonCyan.copy(alpha = 0.5f), CircleShape),
             contentAlignment = Alignment.Center,
         ) {
-            Text("🛰️", fontSize = 40.sp)
+            Text("🛰️", fontSize = 38.sp)
         }
 
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(20.dp))
 
         Text(
             text = "SPEEDOMETER PRO",
@@ -877,14 +1057,17 @@ private fun ModernPermissionScreen(onGrant: () -> Unit) {
         Spacer(Modifier.height(10.dp))
 
         Text(
-            text = "ต้องการสิทธิ์เข้าถึงตำแหน่งที่แม่นยำ (Precise GPS)\nเพื่อคำนวณความเร็ว ระยะทาง และทิศทางการเคลื่อนที่แบบเรียลไทม์",
+            text = if (language == AppLanguage.EN)
+                "Precise GPS location permission is required\nto calculate real-time speed, distance, and heading."
+            else
+                "ต้องการสิทธิ์เข้าถึงตำแหน่งที่แม่นยำ (Precise GPS)\nเพื่อคำนวณความเร็ว ระยะทาง และทิศทางการเคลื่อนที่แบบเรียลไทม์",
             color = TextDim,
             textAlign = TextAlign.Center,
             fontSize = 14.sp,
             lineHeight = 22.sp,
         )
 
-        Spacer(Modifier.height(32.dp))
+        Spacer(Modifier.height(28.dp))
 
         // Features list
         Column(
@@ -894,14 +1077,26 @@ private fun ModernPermissionScreen(onGrant: () -> Unit) {
                 .background(CardBg)
                 .border(1.dp, BorderDark, RoundedCornerShape(16.dp))
                 .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            PermissionFeatureItem(icon = "⚡", title = "Real-time GPS Speed", desc = "วัดความเร็วจากดาวเทียมตรง ไม่ใช้อินเทอร์เน็ต")
-            PermissionFeatureItem(icon = "🛡️", title = "ความเป็นส่วนตัว 100%", desc = "ไม่มีการเก็บหรือส่งข้อมูลพิกัดออกจากเครื่อง")
-            PermissionFeatureItem(icon = "🚘", title = "HUD Mode & Alerts", desc = "สะท้อนกระจกหน้ารถตอนกลางคืน พร้อมเตือนความเร็ว")
+            PermissionFeatureItem(
+                icon = "⚡",
+                title = if (language == AppLanguage.EN) "Real-time GPS Speed" else "วัดความเร็ว GPS เรียลไทม์",
+                desc = if (language == AppLanguage.EN) "Direct satellite speed tracking, no internet required" else "วัดความเร็วจากดาวเทียมตรง ไม่ใช้อินเทอร์เน็ต",
+            )
+            PermissionFeatureItem(
+                icon = "🛡️",
+                title = if (language == AppLanguage.EN) "100% Privacy" else "ความเป็นส่วนตัว 100%",
+                desc = if (language == AppLanguage.EN) "No location data is stored or transmitted" else "ไม่มีการเก็บหรือส่งข้อมูลพิกัดออกจากเครื่อง",
+            )
+            PermissionFeatureItem(
+                icon = "🚘",
+                title = if (language == AppLanguage.EN) "HUD Mode & Speed Alerts" else "โหมด HUD & เตือนความเร็ว",
+                desc = if (language == AppLanguage.EN) "Windshield reflection mode for night driving with speed alerts" else "สะท้อนกระจกหน้ารถตอนกลางคืน พร้อมเตือนความเร็ว",
+            )
         }
 
-        Spacer(Modifier.height(32.dp))
+        Spacer(Modifier.height(28.dp))
 
         Button(
             onClick = onGrant,
@@ -915,11 +1110,13 @@ private fun ModernPermissionScreen(onGrant: () -> Unit) {
             ),
         ) {
             Text(
-                text = "อนุญาตและเริ่มใช้งาน GPS",
+                text = if (language == AppLanguage.EN) "Grant Permission & Start GPS" else "อนุญาตและเริ่มใช้งาน GPS",
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
             )
         }
+
+        Spacer(Modifier.weight(1f))
     }
 }
 
@@ -953,10 +1150,10 @@ private class SpeedController(private val appContext: Context) : LocationListene
     fun start() {
         if (listening || !contextHasFineLocation()) return
         if (!locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
-            state = state.copy(status = "กรุณาเปิด GPS ในการตั้งค่าเครื่อง", isGpsReady = false)
+            state = state.copy(status = GpsStatus.ENABLE_GPS_SETTINGS, isGpsReady = false)
             return
         }
-        state = state.copy(status = "กำลังเชื่อมต่อดาวเทียม GPS...", isGpsReady = false)
+        state = state.copy(status = GpsStatus.CONNECTING, isGpsReady = false)
         try {
             locationManager.requestLocationUpdates(
                 LocationManager.GPS_PROVIDER,
@@ -967,7 +1164,7 @@ private class SpeedController(private val appContext: Context) : LocationListene
             )
             listening = true
         } catch (e: SecurityException) {
-            state = state.copy(status = "ไม่ได้รับสิทธิ์ตำแหน่ง", isGpsReady = false)
+            state = state.copy(status = GpsStatus.PERMISSION_DENIED, isGpsReady = false)
         }
     }
 
@@ -1018,7 +1215,7 @@ private class SpeedController(private val appContext: Context) : LocationListene
             bearingDegrees = if (location.hasBearing() && filtered > 2.0f) location.bearing else state.bearingDegrees,
             accuracyMeters = if (location.hasAccuracy()) location.accuracy else null,
             isGpsReady = true,
-            status = "GPS เชื่อมต่อสมบูรณ์",
+            status = GpsStatus.CONNECTED,
         )
     }
 
@@ -1030,7 +1227,7 @@ private class SpeedController(private val appContext: Context) : LocationListene
 
     override fun onProviderDisabled(provider: String) {
         if (provider == LocationManager.GPS_PROVIDER) {
-            state = state.copy(status = "GPS ถูกปิดอยู่", isGpsReady = false, speedKmh = 0f)
+            state = state.copy(status = GpsStatus.DISABLED, isGpsReady = false, speedKmh = 0f)
         }
     }
 
