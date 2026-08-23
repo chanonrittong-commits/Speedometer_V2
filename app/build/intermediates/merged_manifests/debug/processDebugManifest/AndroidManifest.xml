@@ -24,6 +24,7 @@
         android:extractNativeLibs="false"
         android:label="Speedometer"
         android:supportsRtl="true"
+        android:testOnly="true"
         android:theme="@style/Theme.Speedometer" >
         <activity
             android:name="com.example.speedometer.MainActivity"
