@@ -824,7 +824,7 @@ private fun OverSpeedWarningBanner(
 }
 
 // -----------------------------------------------------------------------------
-// Custom High-Tech Speed Gauge (Canvas Drawing)
+// Custom High-Tech Speed Gauge (Zero-Overlap Cockpit Core & Orbiting Saber)
 // -----------------------------------------------------------------------------
 @Composable
 private fun ModernSpeedGauge(
@@ -849,28 +849,29 @@ private fun ModernSpeedGauge(
 
     Box(
         modifier = Modifier
-            .fillMaxWidth(0.95f)
+            .fillMaxWidth(0.96f)
             .aspectRatio(1f),
         contentAlignment = Alignment.Center,
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
             val center = this.center
-            val radius = min(size.width, size.height) * 0.42f
+            val outerRadius = min(size.width, size.height) * 0.44f
+            val coreRadius = outerRadius * 0.52f
             val startAngle = 135f
             val sweepTotal = 270f
 
-            // 1. Outer ambient track shadow / glow ring
+            // 1. Outer Ambient Track Ring
             drawArc(
                 color = TrackBg,
                 startAngle = startAngle,
                 sweepAngle = sweepTotal,
                 useCenter = false,
-                topLeft = Offset(center.x - radius, center.y - radius),
-                size = Size(radius * 2, radius * 2),
-                style = Stroke(width = 16.dp.toPx(), cap = StrokeCap.Round),
+                topLeft = Offset(center.x - outerRadius, center.y - outerRadius),
+                size = Size(outerRadius * 2, outerRadius * 2),
+                style = Stroke(width = 14.dp.toPx(), cap = StrokeCap.Round),
             )
 
-            // 2. Active colored gradient progress arc
+            // 2. Active Dynamic Gradient Progress Arc
             val currentSweep = (animatedSpeed / maxSpeed) * sweepTotal
             if (currentSweep > 0.5f) {
                 val activeBrush = Brush.sweepGradient(
@@ -887,30 +888,30 @@ private fun ModernSpeedGauge(
                     startAngle = startAngle,
                     sweepAngle = currentSweep,
                     useCenter = false,
-                    topLeft = Offset(center.x - radius, center.y - radius),
-                    size = Size(radius * 2, radius * 2),
-                    style = Stroke(width = 16.dp.toPx(), cap = StrokeCap.Round),
+                    topLeft = Offset(center.x - outerRadius, center.y - outerRadius),
+                    size = Size(outerRadius * 2, outerRadius * 2),
+                    style = Stroke(width = 14.dp.toPx(), cap = StrokeCap.Round),
                 )
             }
 
-            // 3. Draw Minor & Major Ticks + Scale Text Numerals
+            // 3. Minor & Major Ticks + Scale Text Numerals
             val totalTicks = (maxSpeed / (majorStep / 2)).toInt()
             val textPaint = Paint().apply {
                 color = TextMuted.toArgb()
-                textSize = 10.sp.toPx()
+                textSize = 9.5.sp.toPx()
                 textAlign = Paint.Align.CENTER
                 typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
                 isAntiAlias = true
             }
 
+            val outerTickR = outerRadius - 10.dp.toPx()
             for (i in 0..totalTicks) {
                 val tickSpeed = i * (majorStep / 2)
                 val isMajor = i % 2 == 0
                 val tickAngle = startAngle + (tickSpeed / maxSpeed) * sweepTotal
                 val radians = Math.toRadians(tickAngle.toDouble())
 
-                val outerR = radius - 16.dp.toPx()
-                val innerR = outerR - (if (isMajor) 14.dp.toPx() else 7.dp.toPx())
+                val innerTickR = outerTickR - (if (isMajor) 11.dp.toPx() else 5.5.dp.toPx())
 
                 val tickColor = when {
                     tickSpeed >= maxSpeed * 0.85f -> WarningRed.copy(alpha = 0.85f)
@@ -922,20 +923,20 @@ private fun ModernSpeedGauge(
                 drawLine(
                     color = tickColor,
                     start = Offset(
-                        center.x + cos(radians).toFloat() * innerR,
-                        center.y + sin(radians).toFloat() * innerR,
+                        center.x + cos(radians).toFloat() * innerTickR,
+                        center.y + sin(radians).toFloat() * innerTickR,
                     ),
                     end = Offset(
-                        center.x + cos(radians).toFloat() * outerR,
-                        center.y + sin(radians).toFloat() * outerR,
+                        center.x + cos(radians).toFloat() * outerTickR,
+                        center.y + sin(radians).toFloat() * outerTickR,
                     ),
-                    strokeWidth = if (isMajor) 3.5.dp.toPx() else 1.8.dp.toPx(),
+                    strokeWidth = if (isMajor) 3.dp.toPx() else 1.5.dp.toPx(),
                     cap = StrokeCap.Round,
                 )
 
                 // Draw Scale Number (on Major Ticks)
                 if (isMajor) {
-                    val numR = innerR - 14.dp.toPx()
+                    val numR = innerTickR - 11.dp.toPx()
                     val textX = center.x + cos(radians).toFloat() * numR
                     val textY = center.y + sin(radians).toFloat() * numR + (textPaint.textSize / 3)
 
@@ -951,75 +952,122 @@ private fun ModernSpeedGauge(
                 }
             }
 
-            // 4. Draw Illuminated Tapered Needle
+            // 4. Central Core Pod Background & Bezel
+            // Outer glow ring
+            drawCircle(
+                color = gaugeColor.copy(alpha = 0.08f),
+                radius = coreRadius + 4.dp.toPx(),
+                center = center,
+            )
+            // Core capsule solid background
+            drawCircle(
+                color = CardBg,
+                radius = coreRadius,
+                center = center,
+            )
+            // Core capsule bezel border
+            drawCircle(
+                color = if (isOverSpeed) WarningRed.copy(alpha = 0.8f) else BorderDark,
+                radius = coreRadius,
+                center = center,
+                style = Stroke(width = 2.dp.toPx()),
+            )
+            // Inner decorative accent ring
+            drawCircle(
+                color = BorderDark.copy(alpha = 0.4f),
+                radius = coreRadius - 5.dp.toPx(),
+                center = center,
+                style = Stroke(width = 1.dp.toPx()),
+            )
+
+            // 5. Orbiting Saber Needle (Zero Overlap with Core Pod)
             val needleAngle = startAngle + (animatedSpeed / maxSpeed) * sweepTotal
             val needleRad = Math.toRadians(needleAngle.toDouble())
-            val needleLength = radius * 0.76f
 
-            val tipX = center.x + cos(needleRad).toFloat() * needleLength
-            val tipY = center.y + sin(needleRad).toFloat() * needleLength
+            val needleInnerR = coreRadius + 3.dp.toPx()
+            val needleOuterR = outerRadius - 3.dp.toPx()
+
+            val tipX = center.x + cos(needleRad).toFloat() * needleOuterR
+            val tipY = center.y + sin(needleRad).toFloat() * needleOuterR
+
+            val baseCenter = Offset(
+                center.x + cos(needleRad).toFloat() * needleInnerR,
+                center.y + sin(needleRad).toFloat() * needleInnerR,
+            )
 
             val leftRad = needleRad - Math.PI / 2
             val rightRad = needleRad + Math.PI / 2
-            val baseRadius = 8.dp.toPx()
+            val baseHalfWidth = 4.5.dp.toPx()
 
             val baseLeft = Offset(
-                center.x + cos(leftRad).toFloat() * baseRadius,
-                center.y + sin(leftRad).toFloat() * baseRadius,
+                baseCenter.x + cos(leftRad).toFloat() * baseHalfWidth,
+                baseCenter.y + sin(leftRad).toFloat() * baseHalfWidth,
             )
             val baseRight = Offset(
-                center.x + cos(rightRad).toFloat() * baseRadius,
-                center.y + sin(rightRad).toFloat() * baseRadius,
+                baseCenter.x + cos(rightRad).toFloat() * baseHalfWidth,
+                baseCenter.y + sin(rightRad).toFloat() * baseHalfWidth,
             )
 
-            val needlePath = Path().apply {
+            val saberPath = Path().apply {
                 moveTo(tipX, tipY)
                 lineTo(baseRight.x, baseRight.y)
                 lineTo(baseLeft.x, baseLeft.y)
                 close()
             }
 
-            // Needle Body & Outline
+            // Draw Saber Needle Body with Radiant Glow Gradient
             drawPath(
-                path = needlePath,
+                path = saberPath,
                 brush = Brush.linearGradient(
-                    colors = listOf(gaugeColor, gaugeColor.copy(alpha = 0.5f)),
+                    colors = listOf(
+                        gaugeColor,
+                        gaugeColor.copy(alpha = 0.75f),
+                    ),
                     start = Offset(tipX, tipY),
-                    end = center,
+                    end = baseCenter,
                 ),
             )
 
-            // 5. Center Metallic Pivot Hub
-            drawCircle(color = BgDark, radius = 18.dp.toPx(), center = center)
-            drawCircle(color = BorderDark, radius = 16.dp.toPx(), center = center)
-            drawCircle(color = gaugeColor, radius = 7.dp.toPx(), center = center)
-            drawCircle(color = TextWhite, radius = 3.dp.toPx(), center = center)
+            // Draw Orbiting Base Marker at Core Rim
+            drawCircle(
+                color = gaugeColor,
+                radius = 4.dp.toPx(),
+                center = baseCenter,
+            )
+            drawCircle(
+                color = TextWhite,
+                radius = 1.8.dp.toPx(),
+                center = baseCenter,
+            )
         }
 
-        // Center Digital Display
+        // Center Digital Display (Securely inside Core Pod)
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(top = 70.dp),
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier.padding(bottom = 2.dp),
         ) {
             Text(
                 text = "%.0f".format(animatedSpeed),
                 color = if (isOverSpeed) WarningRed else TextWhite,
-                fontSize = 72.sp,
+                fontSize = 68.sp,
                 fontWeight = FontWeight.Black,
                 fontFamily = FontFamily.SansSerif,
                 letterSpacing = (-2).sp,
+                maxLines = 1,
             )
+            Spacer(Modifier.height(2.dp))
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(8.dp))
-                    .background(if (isOverSpeed) WarningRed.copy(alpha = 0.2f) else CardBg)
+                    .background(if (isOverSpeed) WarningRed.copy(alpha = 0.2f) else BgDark)
                     .border(1.dp, if (isOverSpeed) WarningRed else BorderDark, RoundedCornerShape(8.dp))
-                    .padding(horizontal = 12.dp, vertical = 2.dp),
+                    .padding(horizontal = 10.dp, vertical = 2.dp),
             ) {
                 Text(
                     text = unitLabel,
                     color = if (isOverSpeed) WarningRed else NeonCyan,
-                    fontSize = 14.sp,
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.sp,
                 )

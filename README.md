@@ -45,9 +45,13 @@
 - **หน้าต่างการตั้งค่าเฉพาะ (Dedicated Settings Modal ⚙️)**:
   - ย้ายการเลือกภาษา (`EN` / `TH`), การเลือกหน่วยความเร็ว (`KM/H`, `MPH`, `KTS`) และการตั้งค่า Speed Limit เข้าสู่เมนู Settings ⚙️ บน Top Bar
   - ช่วยให้แถบ Top Bar ด้านบนมีพื้นที่กว้างขวาง สบายตา ป้องกันข้อความบนปุ่ม (เช่น HUD) ตกบรรทัด
+- **ปรับปรุงหน้าปัดใหม่แก้ปัญหาการทับซ้อน (Zero-Overlap Cockpit Core Pod & Orbiting Saber Needle)**:
+  - แยกโซนแสดงผลความเร็วดิจิทัลตรงกลางออกเป็น **Cockpit Core Pod** พร้อมกรอบ Bezel สไตล์สปอร์ต ป้องกันไม่ให้ตัวเลขดิจิทัลชนกับเข็มไมล์
+  - เปลี่ยนเข็มไมล์เป็นแบบ **Orbiting Saber Needle** ที่หมุนวนอยู่รอบนอก Core Pod ทำให้เข็มไมล์และตัวเลขความเร็วดิจิทัลไม่มีการทับซ้อนกันในทุกย่านความเร็ว (Zero Overlap 100%)
 - **ไอคอนแอปแบบ Modern Minimal (Custom Adaptive App Icon)**:
   - ออกแบบไอคอนแอปใหม่สไตล์ Minimal Cyberpunk Vector (มาตรวัดความเร็วทรงมินิมอล, เข็มเรืองแสงสีนีออนไซอัน และพื้นหลัง Deep Cockpit Dark) รองรับ Adaptive Icon ครบทุกรูปทรง (Circle, Squircle, Rounded Square)
 - **ปรับแต่งขอบหน้าจอ Edge-to-Edge & System Insets**:
   - รองรับ `enableEdgeToEdge()` และ `statusBarsPadding()` / `navigationBarsPadding()` เพื่อป้องกันไม่ให้ส่วนหัวของแอปและปุ่มควบคุมชนหรือซ้อนทับกับ Notification Bar / Camera Cutout และแถบ Gesture ด้านล่าง
+
 
 
