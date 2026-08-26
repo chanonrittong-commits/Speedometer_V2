@@ -1,32 +1,54 @@
-# Speedometer
+# Velox Speedometer
 
-แอป Android Native Kotlin + Jetpack Compose สำหรับแสดงความเร็วจาก GPS ของโทรศัพท์
+**Velox Speedometer** โดย **Titanforge** — แอป Android Native Kotlin + Jetpack Compose ระดับพรีเมียมสำหรับแสดงความเร็วและข้อมูล Telemetry จาก GPS ด้วยหน้าปัด Modern Cockpit, โหมดสะท้อนกระจกหน้ารถ (HUD Mode) และระบบสลับธีม
 
-## สิ่งที่มีในตัวอย่าง
+- **Studio Brand**: `Titanforge`
+- **App Name**: `Velox Speedometer` (`VELOX PRO`)
+- **Package Name**: `com.titanforge.velox`
 
-- ขอสิทธิ์ตำแหน่งแบบ runtime
-- อ่านค่า `Location.speed` จาก GPS และแปลงเป็น km/h, mph, knots
-- เลือกระบบภาษาได้ระหว่าง English (EN) และ ภาษาไทย (TH)
-- Smooth ค่าเพื่อลดการกระโดดของตัวเลข
-- หยุดอัปเดตตำแหน่งอัตโนมัติเมื่อแอปไม่อยู่ด้านหน้า
-- หน้าปัด Compose พร้อม needle, HUD Mode และระบบแจ้งเตือนจำกัดความเร็ว
+---
 
-## เปิดและรัน
+## 🌟 ฟีเจอร์หลัก (Key Features)
 
-1. เปิดโฟลเดอร์นี้ใน Android Studio และตรวจที่ **Settings > Build, Execution, Deployment > Build Tools > Gradle > Gradle JDK** ว่าเลือก `Embedded JDK` (17 ขึ้นไป)
-2. ติดตั้ง Android SDK Platform 35 หากยังไม่มี
-3. กด **Sync Project with Gradle Files** แล้วรันบนโทรศัพท์จริง
-4. อนุญาต **Precise location** และเปิด GPS
+- **🛰️ High-Precision GPS Speed & Telemetry**:
+  - อ่านค่าความเร็วเรียลไทม์จากดาวเทียม GPS พร้อมอัลกอริทึม Smoothing
+  - แสดงค่าความเร็วสูงสุด (Max Speed), ระยะทางสะสม (Trip Distance), ระดับความสูง (Altitude) และทิศทางเข็มทิศ (Heading)
+- **⚡ Zero-Overlap Modern Cockpit Gauge**:
+  - หน้าปัดแบบ **Cockpit Core Pod** พร้อมเข็มไมล์ **Orbiting Saber Needle** หมุนรอบนอก ป้องกันการทับซ้อนกับตัวเลขความเร็วดิจิทัล 100%
+- **🎨 Multi-Theme Architecture**:
+  - **💠 Modern Cyan (Default)**: โทนนีออนไซอัน Electric Blue หรูหรา สะอาดตา
+  - **⚡ Cyberpunk Neon**: โทน Hot Magenta / Neon Pink, Deep Violet, Neon Purple และ Cyber Yellow
+- **🪞 Widescreen HUD Mode**:
+  - โหมดสะท้อนกระจกหน้ารถสำหรับวางมือถือคอนโซลหน้ารถตอนกลางคืน รองรับทั้งแนวตั้งและแนวนอน
+- **⚠️ Speed Limit Alert System**:
+  - ตั้งค่าความเร็วสูงสุด (80, 100, 120 km/h หรือกำหนดเอง) พร้อมแบนเนอร์แจ้งเตือนแบบกระพริบเมื่อขับเกินกำหนด
+- **🌐 2 Languages & Multi-Unit**:
+  - เลือกระบบภาษาได้ระหว่าง English (EN) และ ภาษาไทย (TH)
+  - สลับหน่วยความเร็วได้ทันที: `KM/H`, `MPH`, `KTS` พร้อมแปลงระยะทางและความสูงอัตโนมัติ
+- **🔄 Auto-Rotation Full Sensor**:
+  - สลับทิศทางหน้าจอแนวตั้ง (Portrait) และแนวนอน (Widescreen Split Cockpit) อัตโนมัติตามการถือโทรศัพท์
+- **⚙️ Settings Persistence**:
+  - บันทึกการเลือกภาษา, หน่วย, การเตือนความเร็ว และธีมหน้าปัดลงเครื่องอัตโนมัติ
 
-โปรเจกต์ตั้ง target bytecode เป็น Java 17 ทั้ง Kotlin และ Java จึงใช้งาน Gradle JDK 17 หรือ 21 ได้โดยไม่ทำให้ target ของทั้งสองภาษาไม่ตรงกัน
+---
 
-หรือรันบน Windows จาก Terminal ด้วย `./gradlew.bat assembleDebug` (ครั้งแรก Gradle จะดาวน์โหลด dependencies)
+## 🚀 การติดตั้งและรันโปรเจกต์ (Build & Run)
+
+1. เปิดโฟลเดอร์ใน Android Studio (ตรวจที่ **Settings > Build Tools > Gradle > Gradle JDK** ให้เป็น Java 17 ขึ้นไป)
+2. รันผ่าน Gradle Terminal:
+   ```bash
+   ./gradlew.bat assembleDebug
+   ```
+3. ติดตั้งลงในโทรศัพท์:
+   ```bash
+   adb install -r app/build/outputs/apk/debug/app-debug.apk
+   adb shell am start -n com.titanforge.velox/.MainActivity
+   ```
 
 การวัดความเร็วจาก GPS อาจคลาดเคลื่อนในอาคาร อุโมงค์ หรือเมื่อสัญญาณดาวเทียมอ่อน จึงไม่ควรใช้แทนมาตรวัดความเร็วรถ
 
 ## หมายเหตุสำหรับการต่อยอด
 
-เวอร์ชันนี้จงใจทำงานเฉพาะขณะที่หน้าจอแอปเปิดอยู่ หากต้องการบันทึกเส้นทางหรือทำงานขณะล็อกหน้าจอ ให้เพิ่ม Foreground Service พร้อม notification ที่มองเห็นได้
 
 ## สรุปการเปลี่ยนแปลงล่าสุด (Summary of Changes)
 
@@ -50,8 +72,15 @@
   - เปลี่ยนเข็มไมล์เป็นแบบ **Orbiting Saber Needle** ที่หมุนวนอยู่รอบนอก Core Pod ทำให้เข็มไมล์และตัวเลขความเร็วดิจิทัลไม่มีการทับซ้อนกันในทุกย่านความเร็ว (Zero Overlap 100%)
 - **ไอคอนแอปแบบ Modern Minimal (Custom Adaptive App Icon)**:
   - ออกแบบไอคอนแอปใหม่สไตล์ Minimal Cyberpunk Vector (มาตรวัดความเร็วทรงมินิมอล, เข็มเรืองแสงสีนีออนไซอัน และพื้นหลัง Deep Cockpit Dark) รองรับ Adaptive Icon ครบทุกรูปทรง (Circle, Squircle, Rounded Square)
-- **ปรับแต่งขอบหน้าจอ Edge-to-Edge & System Insets**:
-  - รองรับ `enableEdgeToEdge()` และ `statusBarsPadding()` / `navigationBarsPadding()` เพื่อป้องกันไม่ให้ส่วนหัวของแอปและปุ่มควบคุมชนหรือซ้อนทับกับ Notification Bar / Camera Cutout และแถบ Gesture ด้านล่าง
-
-
-
+- **รองรับการหมุนหน้าจออัตโนมัติเต็มรูปแบบ (Full Sensor Auto-Rotation & Landscape Cockpit)**:
+  - ปลดล็อกการหมุนหน้าจออัตโนมัติใน `AndroidManifest.xml` (`android:screenOrientation="fullSensor"`) พร้อม `configChanges` เพื่อให้แอปปรับทิศทางหน้าจออัตโนมัติตามการถือโทรศัพท์ของผู้ใช้
+  - ออกแบบหน้าจอแดชบอร์ดแนวนอนแบบ **Widescreen Split Cockpit** (ฝั่งซ้าย: มาตรวัดความเร็ว Gauge ขนาดใหญ่เต็มความสูงหน้าจอ, ฝั่งขวา: แผงควบคุม คอนโซล Telemetry 2x2 และปุ่มตั้งค่า)
+  - แถบ Top Bar ด้านบนสะอาด สบายตา ไร้ปุ่มกดสลับหน้าจอที่ไม่จำเป็น
+  - ปรับปรุงหน้าต่างการตั้งค่า (Settings Dialog) และหน้าขอสิทธิ์ (Permission Screen) ให้ปรับขนาดและแสดงผลอย่างสวยงามในแนวนอน
+  - รองรับโหมด HUD ในแนวนอนเพื่อการสะท้อนกระจกหน้ารถแบบ Widescreen อย่างสมบูรณ์
+- **อัปเกรด Jetpack Compose UI เป็น 1.11.0**:
+  - อัปเกรด Compose UI (`ui`, `ui-graphics`, `ui-tooling`, `ui-tooling-preview`) เป็นเวอร์ชัน `1.11.0` เพื่อความเข้ากันได้สมบูรณ์กับ Android Studio Layout Inspector
+- **ระบบสลับธีมหน้าปัด (Gauge Themes) พร้อมธีมใหม่ "Cyberpunk Neon" ⚡**:
+  - เพิ่มระบบเลือกธีมหน้าปัดในเมนู Settings ⚙️ บันทึกลง SharedPreferences อัตโนมัติ
+  - **💠 Modern Cyan (Default)**: โทนนีออนไซอัน Electric Blue หรูหรา สะอาดตา
+  - **⚡ Cyberpunk Neon**: โทน Hot Magenta/Neon Pink, Deep Violet, Neon Purple และ Cyber Yellow พร้อมแสงเรืองรอบเข็มไมล์และ Cockpit Surfaces เหมาะสำหรับขับขี่ยามค่ำคืนสไตล์ Cyberpunk
