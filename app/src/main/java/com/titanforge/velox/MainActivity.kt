@@ -13,6 +13,10 @@ import android.os.Bundle
 import android.os.Looper
 import android.view.WindowManager
 import android.graphics.Color as AndroidColor
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import kotlinx.coroutines.delay
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
@@ -1365,6 +1369,52 @@ private fun ModernSpeedGauge(
                 )
             }
         }
+
+        // Digital Clock (hr:min:sec)
+        DigitalClock(
+            theme = theme,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 12.dp),
+        )
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Digital Clock Component (HH:mm:ss)
+// -----------------------------------------------------------------------------
+@Composable
+private fun DigitalClock(
+    theme: GaugeTheme,
+    modifier: Modifier = Modifier,
+) {
+    val timeFormat = remember { SimpleDateFormat("HH:mm:ss", Locale.getDefault()) }
+    var timeText by remember { mutableStateOf(timeFormat.format(Date())) }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            timeText = timeFormat.format(Date())
+            val delayMs = 1000L - (System.currentTimeMillis() % 1000L)
+            delay(delayMs.coerceAtLeast(100L))
+        }
+    }
+
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(theme.cardBg.copy(alpha = 0.85f))
+            .border(1.dp, theme.borderDark, RoundedCornerShape(12.dp))
+            .padding(horizontal = 14.dp, vertical = 5.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = timeText,
+            color = TextWhite,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold,
+            fontFamily = FontFamily.Monospace,
+            letterSpacing = 1.5.sp,
+        )
     }
 }
 
