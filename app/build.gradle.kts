@@ -22,8 +22,8 @@ android {
         applicationId = "com.titanforge.velox"
         minSdk = 26
         targetSdk = 36
-        versionCode = 6
-        versionName = "1.0.5"
+        versionCode = 7
+        versionName = "1.0.6"
     }
 
     signingConfigs {

@@ -2,9 +2,7 @@ package com.titanforge.velox
 
 import android.Manifest
 import android.content.Context
-import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.content.res.Configuration
 import android.graphics.Paint
 import android.graphics.Typeface
@@ -1011,50 +1009,6 @@ private fun SettingsDialog(
                                 }
                             }
                         }
-
-                        // Section 5: Buy Me a Coffee (Support Creator)
-                        Spacer(Modifier.height(if (isLandscape) 10.dp else 16.dp))
-                        Text(
-                            text = if (language == AppLanguage.EN) "SUPPORT CREATOR" else "สนับสนุนผู้พัฒนา",
-                            color = TextDim,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.2.sp,
-                        )
-                        Spacer(Modifier.height(6.dp))
-                        val ctx = LocalContext.current
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(Color(0xFFFFDD00).copy(alpha = 0.15f))
-                                .border(1.dp, Color(0xFFFFDD00).copy(alpha = 0.55f), RoundedCornerShape(12.dp))
-                                .clickable {
-                                    val intent = Intent(
-                                        Intent.ACTION_VIEW,
-                                        Uri.parse("https://buymeacoffee.com/khunthongteam"),
-                                    ).apply {
-                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                    }
-                                    ctx.startActivity(intent)
-                                }
-                                .padding(vertical = if (isLandscape) 9.dp else 12.dp, horizontal = 12.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            ) {
-                                Text(text = "☕", fontSize = 16.sp)
-                                Text(
-                                    text = if (language == AppLanguage.EN) "Buy Me a Coffee (Khunthongteam)" else "เลี้ยงกาแฟ (Khunthongteam)",
-                                    color = Color(0xFFFFDD00),
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                )
-                            }
-                        }
-
                         Spacer(Modifier.height(if (isLandscape) 6.dp else 14.dp))
                     }
 
